@@ -1,42 +1,65 @@
 # https://ollama.com/blog/embedding-models
 # https://docs.trychroma.com/guides
+# type: ignore
 
 import os
+from collections.abc import Callable
+from warnings import warn
 
 import chromadb
 import ollama
+import PyPDF2
 import yaml
 from dotenv import load_dotenv
+
+WriteCollection = Callable[[int, str], None]
+
+
+def writePdf(filePath: str, writeToCollection: WriteCollection):
+    pdf_file = open(filePath, "rb")
+    pdf_reader = PyPDF2.PdfReader(pdf_file)
+
+    totalPages = len(pdf_reader.pages)
+    for page_num in range(totalPages):
+        print(f"processing page #{page_num} of {totalPages} for {filePath}")
+        page = pdf_reader.pages[page_num]
+        writeToCollection(page_num, page.extract_text())
+
 
 load_dotenv(".env")
 
 dbPath = os.environ.get("DB_PATH")
 configPath = os.environ.get("CONFIG_PATH")
 
+client = chromadb.PersistentClient(path=dbPath)
+
 with open(configPath, "r") as f:
     data = yaml.load(f, Loader=yaml.SafeLoader)
 
 for collectionName, dataPath in data["paths"].items():
+    collection = client.get_or_create_collection(name=collectionName)
     for root, dirs, files in os.walk(os.path.expanduser(dataPath)):
-        print(root)
         for file in files:
+            file_path: str = os.path.join(root, file)
+            print(f"processing {file_path}...")
+
+            def writeCollection(pageNumber: int, contents: str):
+                response = ollama.embeddings(model="mxbai-embed-large", prompt=contents)
+                embedding = response["embedding"]
+                if len(embedding) == 0:
+                    warn(
+                        f"embeddings are empty for {file_path}#{pageNumber} skipping..."
+                    )
+                else:
+                    collection.add(
+                        ids=[f"{file_path}#{pageNumber}"],
+                        embeddings=[embedding],
+                        documents=[contents],
+                    )
+
             if file.endswith(".pdf"):
-                pdf_file_path = os.path.join(root, file)
-                # Do something with the PDF file here, e.g.:
-                print(f"Processing {pdf_file_path}...")
+                writePdf(file_path, writeCollection)
 
-
-# documents = [
-# "Llamas are members of the camelid family meaning they're pretty closely related to vicuñas and camels",
-# "Llamas were first domesticated and used as pack animals 4,000 to 5,000 years ago in the Peruvian highlands",
-# "Llamas can grow as much as 6 feet tall though the average llama between 5 feet 6 inches and 5 feet 9 inches tall",
-# "Llamas weigh between 280 and 450 pounds and can carry 25 to 30 percent of their body weight",
-# "Llamas are vegetarians and have very efficient digestive systems",
-# "Llamas live to be about 20 years old, though some only live for 15 years and others live to be 30 years old",
-# ]
-
-# client = chromadb.PersistentClient(path=dbPath)
-# collection = client.create_collection(name="docs")
 
 # # store each document in a vector embedding database
 # for i, d in enumerate(documents):
