@@ -54,7 +54,7 @@ for collectionName, dataPath in data["paths"].items():
                     collection.add(
                         ids=[f"{file_path}#{pageNumber}"],
                         embeddings=[embedding],
-                        documents=[contents],
+                        documents=[str.upper(contents)],
                     )
 
             if file.endswith(".pdf"):

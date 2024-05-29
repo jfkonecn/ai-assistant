@@ -52,20 +52,43 @@ messages = []
 keywords = []
 
 
-def answer_question(prompt: str):
+def send_message_to_llm(message, answer=""):
+    messages.append({"role": "user", "content": message})
+
+    # output = ollama.generate(
+    # model="llama3",
+    # # prompt=f"Using this data: {data}. Respond to this prompt: {prompt}"
+    # prompt=ragPrompt,
+    # )
+    output = ollama.chat(model="llama3", messages=messages)
+
+    answer += "## Summary\n\n"
+    botAnswer = output["message"]
+
+    messages.append(botAnswer)
+
+    answer += botAnswer["content"]
+
+    print_md(answer)
+
+
+def search_text(prompt: str):
     # generate an embedding for the prompt and retrieve the most relevant doc
     response = ollama.embeddings(prompt=prompt, model="mxbai-embed-large")
     where_document = None
     if len(keywords) > 1:
         where_document = {
-            "$or": list(map(lambda keyword: {"$contains": keyword}, keywords))
+            "$or": list(
+                map(lambda keyword: {"$contains": str.upper(keyword)}, keywords)
+            )
         }
     elif len(keywords) == 1:
-        where_document = {"$contains": keywords[0]}
+        where_document = {"$contains": str.upper(keywords[0])}
 
     results = collection.query(
         query_embeddings=[response["embedding"]],
         n_results=10,
+        where_document=where_document,
         # where_document=where_document,
     )
     # data = str.join("\n", results["documents"][0])
@@ -85,25 +108,7 @@ def answer_question(prompt: str):
     Question: {prompt}
     Answer:
     """
-
-    messages.append({"role": "user", "content": ragPrompt})
-
-    # output = ollama.generate(
-    # model="llama3",
-    # # prompt=f"Using this data: {data}. Respond to this prompt: {prompt}"
-    # prompt=ragPrompt,
-    # )
-    output = ollama.chat(model="llama3", messages=messages)
-
-    answer += "## Summary\n\n"
-    botAnswer = output["message"]
-
-    messages.append(botAnswer)
-
-    answer += botAnswer["content"]
-
-    print_md(answer)
-    print(prompt)
+    send_message_to_llm(ragPrompt, answer)
 
 
 prompt = ""
@@ -127,7 +132,7 @@ while prompt != "/bye":
         joined_keywords = f"({joined})"
     prompt = input(f"{joined_keywords}>>> ")
     if prompt[0] != "/":
-        answer_question(prompt)
+        search_text(prompt)
     elif prompt == "/clear keywords":
         keywords = []
     elif prompt.startswith("/keywords "):
