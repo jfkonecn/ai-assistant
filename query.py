@@ -52,7 +52,7 @@ messages = []
 keywords = []
 
 
-def send_message_to_llm(message, answer=""):
+def send_message_to_llm(message):
     messages.append({"role": "user", "content": message})
 
     # output = ollama.generate(
@@ -62,7 +62,7 @@ def send_message_to_llm(message, answer=""):
     # )
     output = ollama.chat(model="llama3", messages=messages)
 
-    answer += "## Summary\n\n"
+    answer = "## Summary\n\n"
     botAnswer = output["message"]
 
     messages.append(botAnswer)
@@ -87,7 +87,7 @@ def search_text(prompt: str):
 
     results = collection.query(
         query_embeddings=[response["embedding"]],
-        n_results=10,
+        # n_results=10,
         where_document=where_document,
         # where_document=where_document,
     )
@@ -95,20 +95,17 @@ def search_text(prompt: str):
 
     # print(data)
 
-    answer = "# Answer\n\n"
-    answer += "## Sources\n\n"
+    pdfContent = ""
     for i, doc in enumerate(results["documents"][0]):
-        answer += f"## {results['ids'][0][i]}\n\n"
-        answer += f"{doc}\n\n"
+        # pdfContent += f"## {results['ids'][0][i]}\n\n"
+        pdfContent += f"{doc}\n\n"
 
-    ragPrompt = f"""Answer the question using the provided context.
-    Your answer should be in your own words and be no longer than 50 words.
-    Respond in markdown.
-    Context: {answer}
+    ragPrompt = f"""
+You are an expert in finding information. You will be provided with sources delimited by triple quotes and a question. Your task is to answer the question using only the provided document and to cite the passage(s) of the document used to answer the question. If the document does not contain the information needed to answer this question then simply write: "Insufficient information." If an answer to the question is provided, it MUST be annotated with a citation. Use the following format for to cite relevant passages ({{"citation": …}}).
+    \"\"\"{pdfContent}\"\"\"
     Question: {prompt}
-    Answer:
     """
-    send_message_to_llm(ragPrompt, answer)
+    send_message_to_llm(ragPrompt)
 
 
 prompt = ""

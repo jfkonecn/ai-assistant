@@ -20,10 +20,14 @@ def writePdf(filePath: str, writeToCollection: WriteCollection):
     pdf_reader = PyPDF2.PdfReader(pdf_file)
 
     totalPages = len(pdf_reader.pages)
+    all_text = ""
     for page_num in range(totalPages):
         print(f"processing page #{page_num} of {totalPages} for {filePath}")
         page = pdf_reader.pages[page_num]
-        writeToCollection(page_num, page.extract_text())
+        all_text += f"Start of Page {page_num} of {totalPages}"
+        all_text += f"{page.extract_text()}\n"
+        all_text += f"End of Page {page_num} of {totalPages}"
+    writeToCollection(0, all_text)
 
 
 load_dotenv(".env")
