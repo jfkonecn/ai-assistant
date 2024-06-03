@@ -4,6 +4,7 @@
 
 import os
 from collections.abc import Callable
+from pathlib import Path
 from warnings import warn
 
 import chromadb
@@ -12,7 +13,7 @@ import PyPDF2
 import yaml
 from dotenv import load_dotenv
 
-WriteCollection = Callable[[int, str], None]
+WriteCollection = Callable[[str], None]
 
 
 def writePdf(filePath: str, writeToCollection: WriteCollection):
@@ -27,7 +28,12 @@ def writePdf(filePath: str, writeToCollection: WriteCollection):
         all_text += f"Start of Page {page_num} of {totalPages}"
         all_text += f"{page.extract_text()}\n"
         all_text += f"End of Page {page_num} of {totalPages}"
-    writeToCollection(0, all_text)
+    writeToCollection(all_text)
+
+
+def writeText(filePath: str, writeToCollection: WriteCollection):
+    file = Path(filePath).read_text()
+    writeToCollection(file)
 
 
 load_dotenv(".env")
@@ -47,22 +53,22 @@ for collectionName, dataPath in data["paths"].items():
             file_path: str = os.path.join(root, file)
             print(f"processing {file_path}...")
 
-            def writeCollection(pageNumber: int, contents: str):
+            def writeCollection(contents: str):
                 response = ollama.embeddings(model="mxbai-embed-large", prompt=contents)
                 embedding = response["embedding"]
                 if len(embedding) == 0:
-                    warn(
-                        f"embeddings are empty for {file_path}#{pageNumber} skipping..."
-                    )
+                    warn(f"embeddings are empty for {file_path} skipping...")
                 else:
                     collection.add(
-                        ids=[f"{file_path}#{pageNumber}"],
+                        ids=[f"{file_path}"],
                         embeddings=[embedding],
                         documents=[str.upper(contents)],
                     )
 
             if file.endswith(".pdf"):
                 writePdf(file_path, writeCollection)
+            elif file.endswith(".md") or file.endswith(".txt"):
+                writeText(file_path, writeCollection)
 
 
 # # store each document in a vector embedding database
